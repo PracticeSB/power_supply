@@ -44,10 +44,6 @@ def KEI2231A_SelectChannel(myChan):
 
 def KEI2231A_SetVoltage(myV,myI):
     my_PS.write('APPLy CH1,%0.4f %0.4f' %(myV,myI)) #마지막은 current 범위
-    return myV
-
-def KEI2231A_SetCurrent(myI):
-    my_PS.write("CURR %f" % myI)
     return
 
 def KEI2231A_OutputState(myState):
@@ -56,15 +52,6 @@ def KEI2231A_OutputState(myState):
     else:
         my_PS.write("OUTP 1")
     return
-
-def KEI2231_Send(sndBuffer):
-    my_PS.write(sndBuffer)
-    return
-
-def KEI2231_Query(sndBuffer):
-    return my_PS.query(sndBuffer)
-
-
 #================================================================================
 #    MAIN CODE GOES HERE
 #================================================================================
@@ -75,10 +62,17 @@ my_PS = KEI2231_Connect("ASRL5::INSTR", 1, 20000, 1) #VISA communication
 KEI2231A_SelectChannel(1)
 KEI2231A_OutputState(1) # 1일 경우에는 ON
 
+########Getting a initial resistance code
+KEI2231A_SetVoltage(1,1)
+my_PS.write('FETC:CURR?')
+Current = my_PS.read()
+Initial_resistance = 1/Current
+print(Initial_resistance)
+#########################################
 while True:
     if keyboard.is_pressed("a"):
         break
-    t1 = time.time()    # Capture start time....
+    t1 = time.time()    # Capture start time....a
     Input_voltage = 5
     KEI2231A_SetVoltage(Input_voltage,1)
     my_PS.write('FETC:CURR?')
@@ -86,7 +80,7 @@ while True:
     Resistance = Input_voltage/float(Current)
     print('Current value: ',"%0.4f" %float(Current))
     print('Resistance value:', "%0.4f" %Resistance)
-    t2 = time.time() # Capture stop time...
+    t2 = time.time()    # Capture stop time...
     print("Loop time: ","{0:.4f} s".format((t2-t1)))
     Total_time = (t2 - t1) + Total_time
     Loop_count = Loop_count + 1
