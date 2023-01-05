@@ -19,9 +19,10 @@ rm = 0
 my_PS = 0
 Total_time = 0
 Loop_count = 1
+Set_point = 15
 i_control = 0
-Set_point = 20
 pi = 0
+
 
 d = datetime.datetime.now()
 
@@ -38,23 +39,7 @@ def Input_power(power_cm,sample_length):
     print('Sample length: ', sample_length)
     return power_cm*sample_length
 
-def PI_controller(Kp,Ki,Reference,Present):
-    global i_control
-    global pi
-    error = Reference-Present
-    #print("Error:", error)
-    p_control = Kp*error
-    i_control = i_control+Ki*error*(t2-t1)
-    pi = p_control+i_control #Output data
-    print("PI controller:", pi)
-    return pi
-
 def map(x,input_min,input_max,output_min,output_max):
-    global pi
-    if pi > input_max:
-        pi = input_max
-    if pi < 0:
-        pi = abs(pi)
     return (x-input_min)*(output_max-output_min)/(input_max-input_min)+output_min
 
 def KEI2231_Connect(rsrcString, getIdStr, timeout, doRst):
@@ -110,9 +95,11 @@ time.sleep(1)
 my_PS.write('FETC:CURR?')
 Current = my_PS.read()
 print('Initial current: ', Current)
+my_PS.write('FETC:CURR?')
+Current = my_PS.read()
 Initial_Resistance = Initial_voltage/float(Current)
 print('Initial resistance: ', Initial_Resistance)
-Target_power = Input_power(0.15,2)
+Target_power = Input_power(0.15,5)
 Target_voltage = np.sqrt(Target_power*Initial_Resistance)
 print('Target_voltage:',Target_voltage)
 print('=========================================')
@@ -120,6 +107,10 @@ print('=========================================')
 while True:
     global t1
     global t2
+    global Kp
+    global Ki
+    Ki = 0.1
+    Kp = 1.5
     if keyboard.is_pressed("a"):
         break
     t1 = time.time()    # Capture start time....a
@@ -144,10 +135,13 @@ while True:
     t2 = time.time()    # Capture stop time...
     #print("Loop time:","{0:.4f}s".format((t2-t1)),",",Loop_count)
     Delta_r_percentage = -((Resistance-float(Initial_Resistance))/float(Initial_Resistance))*100
-    print("Delta_r_percentage: ", Delta_r_percentage)
-    PI_controller(2,0.2,10,Delta_r_percentage)
-    Target_Voltage = map(pi,0,200,0,24) #pi control의 값을 voltage로 치환하여서 대입함.
-    #print("Target_Voltage: ", Target_Voltage)
+    error = Set_point-Delta_r_percentage
+    print(error)
+    p_control = Kp*error
+    i_control = i_control+Ki*error*(t2 - t1)
+    pi = p_control+i_control #Output data
+    Target_voltage = map(pi,0,100,0,10) #pi control의 값을 voltage로 치환하여서 대입함.
+    print("Target_voltage: ", Target_voltage)
     Total_time = (t2 - t1) + Total_time
     Loop_count = Loop_count + 1
     datalogging(Loop_count+2,1,Total_time)
