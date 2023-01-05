@@ -1,12 +1,24 @@
 import pyvisa
 import time
 import datetime
+import openpyxl
 import keyboard
 
 d = datetime.datetime.now()
+wb = openpyxl.Workbook()
+ws = wb.create_sheet("TEST")  # Name of the sheet
 
 rm = 0
 my_PS = 0
+Total_time = 0
+Loop_count = 0
+
+def datalogging(x,y,data):
+    ws.cell(row=x, column=y , value=data)
+def dataoutput(finish_time):
+    wb.save(r'D:\Dropbox\노승범\실험\TOF\Laser\20220728\220%\Fabrication_170g\20221214\90g_retry\Practice_'
+            +finish_time.strftime('%Y%m%d%H%M')+'.xlsx')
+    print('Data is saved!')
 
 def KEI2231_Connect(rsrcString, getIdStr, timeout, doRst):
     my_PS = rm.open_resource(rsrcString, baud_rate = 9600, data_bits = 8)	#opens desired resource and sets it variable my_instrument
@@ -76,8 +88,13 @@ while True:
     print('Resistance value:', "%0.4f" %Resistance)
     t2 = time.time() # Capture stop time...
     print("Loop time: ","{0:.4f} s".format((t2-t1)))
+    Total_time = (t2 - t1) + Total_time
+    Loop_count = Loop_count + 1
+    datalogging(Loop_count+2,1,Total_time)
+    datalogging(Loop_count+2,2,Input_voltage)
+    datalogging(Loop_count+2,3,Resistance)
 
-print(d)
+dataoutput(d)
 KEI2231A_OutputState(0)
 KEI2231A_Disconnect()
 
