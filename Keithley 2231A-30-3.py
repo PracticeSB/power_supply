@@ -20,12 +20,13 @@ my_PS = 0
 Total_time = 0
 Loop_count = 1
 i_control = 0
-Interval = 0
+Set_point = 20
+pi = 0
 
 d = datetime.datetime.now()
 
 def datalogging(x,y,data):
-    ws.cell(row=x, column=y , value=data)
+    ws.cell(row=x, column=y, value=data)
 
 def dataoutput(finish_time):
     wb.save(r'D:\Dropbox\노승범\실험\TOF\Laser\20220728\220%\Fabrication_170g\20221214\90g_retry\Practice_'
@@ -36,14 +37,25 @@ def Input_power(power_cm,sample_length):
     print('Input power/cm: ', power_cm)
     print('Sample length: ', sample_length)
     return power_cm*sample_length
-def PI_controller(Kp,Ki,Set_point,Delta_r_percentage):
+
+def PI_controller(Kp,Ki,Reference,Present):
     global i_control
-    error = Set_point-Delta_r_percentage
-    print(error)
+    global pi
+    error = Reference-Present
+    #print("Error:", error)
     p_control = Kp*error
     i_control = i_control+Ki*error*(t2-t1)
     pi = p_control+i_control #Output data
+    print("PI controller:", pi)
     return pi
+
+def map(x,input_min,input_max,output_min,output_max):
+    global pi
+    if pi > input_max:
+        pi = input_max
+    if pi < 0:
+        pi = abs(pi)
+    return (x-input_min)*(output_max-output_min)/(input_max-input_min)+output_min
 
 def KEI2231_Connect(rsrcString, getIdStr, timeout, doRst):
     my_PS = rm.open_resource(rsrcString, baud_rate = 9600, data_bits = 8)	#opens desired resource and sets it variable my_instrument
@@ -55,6 +67,7 @@ def KEI2231_Connect(rsrcString, getIdStr, timeout, doRst):
         print(my_PS.query("*IDN?"))
         my_PS.write('*RST')
         print('Initialization is completed')
+        print('=========================================')
     my_PS.write('SYST:REM')
     my_PS.timeout = timeout
     if doRst == 1:
@@ -86,10 +99,11 @@ def KEI2231A_OutputState(myState):
 rm = pyvisa.ResourceManager()   # Opens the resource manager and sets it to variable rm
 my_PS = KEI2231_Connect("ASRL5::INSTR", 1, 20000, 1) #VISA communication
 KEI2231A_SelectChannel(1)
-KEI2231A_OutputState(1) # 1일 경우에는 ON
+KEI2231A_OutputState(1)     # 1일 경우에는 ON
 #=================================================================================
 # Getting Initial resistance value
 #=================================================================================
+
 Initial_voltage = 3
 KEI2231A_SetVoltage(Initial_voltage,1)
 time.sleep(1)
@@ -109,32 +123,36 @@ while True:
     if keyboard.is_pressed("a"):
         break
     t1 = time.time()    # Capture start time....a
-    Input_voltage = Target_voltage
+    Target_voltage = Target_voltage
     try:
-        KEI2231A_SetVoltage(Input_voltage,1)
+        KEI2231A_SetVoltage(Target_voltage,1)
         my_PS.write('FETC:CURR?')
         Current = my_PS.read()
-        Resistance = Input_voltage/float(Current)
+        Resistance = Target_voltage/float(Current)
         if Resistance > Initial_Resistance*2:
-            print('Error value')
+            #print('Error value')
             my_PS.write('FETC:CURR?')
             time.sleep(0.1)
             Current = my_PS.read()
-            Resistance = Input_voltage/float(Current)
+            Resistance = Target_voltage/float(Current)
         else:
             pass
     except ZeroDivisionError:
         pass
-    print('Current value: ',"%0.4f" %float(Current))
-    print('Resistance value:', "%0.4f" %Resistance)
+    #print('Current value: ',"%0.4f" %float(Current))
+    #print('Resistance value:', "%0.4f" %Resistance)
     t2 = time.time()    # Capture stop time...
-    print("Loop time:","{0:.4f}s".format((t2-t1)),",",Loop_count)
+    #print("Loop time:","{0:.4f}s".format((t2-t1)),",",Loop_count)
+    Delta_r_percentage = -((Resistance-float(Initial_Resistance))/float(Initial_Resistance))*100
+    print("Delta_r_percentage: ", Delta_r_percentage)
+    PI_controller(2,0.2,10,Delta_r_percentage)
+    Target_Voltage = map(pi,0,200,0,24) #pi control의 값을 voltage로 치환하여서 대입함.
+    #print("Target_Voltage: ", Target_Voltage)
     Total_time = (t2 - t1) + Total_time
     Loop_count = Loop_count + 1
     datalogging(Loop_count+2,1,Total_time)
-    datalogging(Loop_count+2,2,Input_voltage)
+    datalogging(Loop_count+2,2,Target_voltage)
     datalogging(Loop_count+2,3,Resistance)
-    Target_voltage = np.sqrt(Target_power*Resistance)
 
 dataoutput(d)
 KEI2231A_OutputState(0)
